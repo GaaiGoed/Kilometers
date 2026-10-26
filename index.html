@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3B6D11">
+<title>Kilometers GaaiGoed</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--groen:#3B6D11;--groen-licht:#EAF3DE;--groen-donker:#27500A;--prive:#B4B2A9;--bg:#f6f6f1;--kaart:#fff;--rand:#d9d8cf;--tekst:#22221f;--zacht:#6b6a63;--rood:#A32D2D;--geel:#FAEEDA;--geel-t:#633806}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tekst);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:17px;-webkit-tap-highlight-color:transparent}
+body{padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+.app{max-width:520px;margin:0 auto;padding:12px 14px 30px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+header h1{font-size:20px;margin:0;font-weight:600}
+.status{font-size:13px;padding:6px 10px;border-radius:20px;background:var(--groen-licht);color:var(--groen-donker);border:none}
+.status.wacht{background:var(--geel);color:var(--geel-t)}
+.status.uit{background:#eee;color:var(--zacht)}
+button{font:inherit;color:var(--tekst);background:var(--kaart);border:1px solid var(--rand);border-radius:12px;cursor:pointer}
+button:active{transform:scale(.98)}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;height:48px}
+.sel{background:var(--groen-licht)!important;color:var(--groen-donker)!important;border:2px solid var(--groen)!important}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.big button{height:96px;font-size:20px}
+.big span{display:block;font-size:30px;margin-bottom:2px}
+.lbl{font-size:15px;color:var(--zacht);margin:16px 0 6px}
+.sub{font-size:15px;color:var(--zacht)}
+.disp{font-size:38px;font-weight:600;text-align:right;padding:10px 16px;border:1px solid var(--rand);border-radius:12px;background:var(--kaart);min-height:66px}
+.kp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.kp button{height:66px;font-size:28px}
+.go{background:var(--groen);color:#fff;border:none;width:100%;height:64px;font-size:19px;margin-top:14px}
+.wide{width:100%;height:54px;margin-top:10px}
+.opt{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt button{height:60px;font-size:18px}
+.fout{color:var(--rood);font-size:14px;margin-top:6px}
+.let{background:var(--geel);color:var(--geel-t);border-radius:12px;padding:10px 12px;font-size:14px;margin-top:10px}
+.datum{font-size:24px;font-weight:600;padding:16px;border:1px solid var(--rand);border-radius:12px;background:var(--kaart);text-align:center}
+input[type=date],input[type=text],input[type=url],select{width:100%;height:56px;font:inherit;font-size:18px;padding:0 12px;border:1px solid var(--rand);border-radius:12px;background:var(--kaart);color:var(--tekst)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:15px;padding:10px 0;border-bottom:1px solid var(--rand)}
+.row .km{font-weight:600;white-space:nowrap}
+.del{border:none;background:none;font-size:20px;padding:4px 8px;color:var(--zacht)}
+.maand{margin:8px 0}
+.bar{height:14px;border-radius:7px;background:var(--prive);overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:var(--groen)}
+.legend{display:flex;align-items:center;gap:8px}
+.legend b{width:12px;height:12px;border-radius:3px;display:inline-block}
+.kaartje{background:var(--kaart);border:1px solid var(--rand);border-radius:12px;padding:14px;margin-top:12px}
+#print{display:none}
+@media print{
+  .app{display:none}
+  #print{display:block;font-family:Arial,sans-serif;color:#000;font-size:11pt}
+  #print h2{font-size:16pt;margin:0 0 4pt}
+  #print table{width:100%;border-collapse:collapse;margin-top:10pt}
+  #print th,#print td{border:1px solid #999;padding:4pt 6pt;text-align:left}
+  #print td.n,#print th.n{text-align:right}
+  @page{size:A4;margin:15mm}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Kilometers</h1>
+    <button id="status" class="status uit">Niet gekoppeld</button>
+  </header>
+  <div class="tabs">
+    <button id="tNieuw" class="sel">Nieuwe rit</button>
+    <button id="tOv">Overzicht</button>
+    <button id="tInst" style="flex:0 0 56px" aria-label="Instellingen">⚙️</button>
+  </div>
+  <div id="scherm"></div>
+</div>
+<div id="print"></div>
+<script src="xlsx.full.min.js"></script>
+<script>
+const VANDAAG = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+const nf = n => Math.round(n).toLocaleString('nl-BE');
+const dDag = d => new Date(d+'T12:00').toLocaleDateString('nl-BE',{weekday:'long',day:'numeric',month:'long'});
+const dVol = d => new Date(d+'T12:00').toLocaleDateString('nl-BE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const dKort = d => new Date(d+'T12:00').toLocaleDateString('nl-BE',{day:'2-digit',month:'2-digit',year:'numeric'});
+const kwartaal = d => d.slice(0,4) + '-K' + (Math.floor((+d.slice(5,7)-1)/3)+1);
+const kwTekst = k => k.slice(6) + 'de kwartaal ' + k.slice(0,4);
+const maanden = ['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+function laad(k, s){ try { return JSON.parse(localStorage.getItem(k)) ?? s; } catch(e){ return s; } }
+function bewaar(){ try { localStorage.setItem('km_ritten', JSON.stringify(ritten)); } catch(e){} }
+let ritten = laad('km_ritten', []);
+let inst = laad('km_inst', {url:'', sleutel:'', toestel:''});
+let r = {}, stap = 'type', inv = '', fout = '', kiesDatum = false, kwKeuze = null, bezig = false;
+const S = document.getElementById('scherm');
+
+const zichtbaar = () => ritten.filter(x => !x.weg);
+const laatste = () => { const z = zichtbaar(); return z.length ? Math.max(...z.map(x => x.e)) : null; };
+
+function bereken(){
+  const s = zichtbaar().slice().sort((a,b) => a.b - b.b || a.d.localeCompare(b.d));
+  s.forEach((x,i) => {
+    x._prive = i ? Math.max(0, x.b - s[i-1].e) : 0;
+    x._dubbel = i ? x.b < s[i-1].e : false;
+  });
+  return s;
+}
+
+function kop(){ return `<div class="sub">${r.ander || r.doel} · ${dDag(r.d)}</div>`; }
+function keypad(titel, extra){
+  return kop() + `<div class="lbl">${titel}</div><div class="disp">${inv ? nf(+inv) : '<span style="color:#bbb">0</span>'}</div>`
+   + (fout ? `<div class="fout">${fout}</div>` : '') + (extra || '')
+   + `<div class="kp">${[1,2,3,4,5,6,7,8,9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="w" aria-label="Wissen">⌫</button><button data-k="0">0</button><button data-k="ok" class="sel">OK</button></div>`;
+}
+
+function teken(){
+  document.getElementById('tNieuw').classList.toggle('sel', !['ov','inst'].includes(stap));
+  document.getElementById('tOv').classList.toggle('sel', stap === 'ov');
+  document.getElementById('tInst').classList.toggle('sel', stap === 'inst');
+  toonStatus();
+
+  if (stap === 'type'){
+    S.innerHTML = `<div class="lbl" style="margin-top:0">Waar rij je naartoe?</div><div class="big">
+      <button data-t="Pakjes"><span>📦</span>Pakjes</button>
+      <button data-t="Karweis"><span>🚗</span>Karweis</button>
+      <button data-t="Wierikx"><span>🚚</span>Wierikx</button>
+      <button data-t="Andere"><span>✏️</span>Andere</button></div>`;
+    S.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { r = {doel:b.dataset.t, d:VANDAAG()}; kiesDatum = false; fout=''; stap = r.doel === 'Andere' ? 'ander' : 'datum'; teken(); });
+  }
+  else if (stap === 'ander'){
+    S.innerHTML = `<div class="lbl" style="margin-top:0">Doel van de rit</div><input type="text" id="anderIn" placeholder="Bijvoorbeeld bpost Halle" value="${r.ander||''}">`
+      + (fout ? `<div class="fout">${fout}</div>` : '') + `<button class="go" id="verder">Verder</button><button class="wide" id="terug">Terug</button>`;
+    const i = document.getElementById('anderIn'); i.focus(); i.oninput = () => { fout = ''; };
+    document.getElementById('verder').onclick = () => { const v = i.value.trim(); if (!v){ fout = 'Vul eerst het doel in'; teken(); return; } fout=''; r.ander = v; stap = 'datum'; teken(); };
+    document.getElementById('terug').onclick = () => { stap = 'type'; teken(); };
+  }
+  else if (stap === 'datum'){
+    const isVd = r.d === VANDAAG() && !kiesDatum;
+    S.innerHTML = `<div class="sub">${r.ander || r.doel}</div><div class="lbl">Datum van de rit</div>
+      <div class="datum">${dVol(r.d)}</div>
+      <div class="opt" style="margin-top:10px"><button id="vd" class="${isVd?'sel':''}">Vandaag</button><button id="ad" class="${isVd?'':'sel'}">Andere datum</button></div>
+      ${kiesDatum ? `<input type="date" id="dat" value="${r.d}" max="${VANDAAG()}" style="margin-top:10px">` : ''}
+      <button class="go" id="verder">Verder</button><button class="wide" id="terug">Terug</button>`;
+    document.getElementById('vd').onclick = () => { r.d = VANDAAG(); kiesDatum = false; teken(); };
+    document.getElementById('ad').onclick = () => { kiesDatum = true; teken(); const d = document.getElementById('dat'); d.focus(); try { d.showPicker(); } catch(e){} };
+    const dat = document.getElementById('dat'); if (dat) dat.onchange = () => { if (dat.value && dat.value <= VANDAAG()){ r.d = dat.value; teken(); } };
+    document.getElementById('verder').onclick = () => { inv = ''; fout = ''; stap = 'begin'; teken(); };
+    document.getElementById('terug').onclick = () => { stap = r.doel === 'Andere' ? 'ander' : 'type'; teken(); };
+  }
+  else if (stap === 'begin' || stap === 'eind'){
+    const l = laatste();
+    const extra = stap === 'begin'
+      ? (l !== null ? `<button class="wide" id="laatst">Laatste stand gebruiken: ${nf(l)}</button>` : '')
+      : `<div class="sub" style="margin-top:6px">Beginstand ${nf(r.b)}</div>`;
+    S.innerHTML = keypad(stap === 'begin' ? 'Kilometerstand bij vertrek' : 'Kilometerstand bij aankomst', extra) + `<button class="wide" id="terug">Terug</button>`;
+    const lb = document.getElementById('laatst'); if (lb) lb.onclick = () => { inv = String(l); fout = ''; teken(); };
+    document.getElementById('terug').onclick = () => { fout=''; inv=''; stap = stap === 'begin' ? 'datum' : (r.doel === 'Pakjes' ? 'pakjes' : 'begin'); teken(); };
+    S.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+      const k = b.dataset.k; fout = '';
+      if (k === 'w') inv = inv.slice(0,-1);
+      else if (k === 'ok'){
+        if (!inv){ fout = 'Tik eerst een kilometerstand in'; teken(); return; }
+        if (stap === 'begin'){ r.b = +inv; inv = ''; stap = r.doel === 'Pakjes' ? 'pakjes' : 'eind'; }
+        else { if (+inv <= r.b){ fout = 'De eindstand moet hoger zijn dan ' + nf(r.b); teken(); return; } r.e = +inv; stap = 'klaar'; }
+      }
+      else if (inv.length < 7) inv += k;
+      teken();
+    });
+  }
+  else if (stap === 'pakjes'){
+    S.innerHTML = kop() + `<div class="lbl">Beginstand ${nf(r.b)}. Hoeveel km?</div>
+      <div class="opt"><button data-km="15" style="height:96px;font-size:30px">15 km</button><button data-km="25" style="height:96px;font-size:30px">25 km</button></div>
+      <button class="wide" id="zelf">Zelf eindstand ingeven</button><button class="wide" id="terug">Terug</button>`;
+    S.querySelectorAll('[data-km]').forEach(b => b.onclick = () => { r.e = r.b + (+b.dataset.km); stap = 'klaar'; teken(); });
+    document.getElementById('zelf').onclick = () => { inv = ''; stap = 'eind'; teken(); };
+    document.getElementById('terug').onclick = () => { inv = String(r.b); stap = 'begin'; teken(); };
+  }
+  else if (stap === 'klaar'){
+    const l = laatste();
+    const waarsch = (l !== null && r.b < l) ? `<div class="let">Let op: de beginstand ligt lager dan je laatste ingevulde stand (${nf(l)}). Klopt dat? Je kan de rit toch bewaren.</div>` : '';
+    S.innerHTML = kop() + `<div style="text-align:center;margin:20px 0"><div class="sub">${nf(r.b)} tot ${nf(r.e)}</div><div style="font-size:52px;font-weight:700;color:var(--groen)">${nf(r.e - r.b)} km</div></div>${waarsch}
+      <button class="go" id="bewaar">Rit bewaren</button><button class="wide" id="opnieuw">Opnieuw beginnen</button>`;
+    document.getElementById('bewaar').onclick = () => {
+      ritten.push({id:uid(), d:r.d, doel:r.ander || r.doel, b:r.b, e:r.e, toestel:inst.toestel || '', t:new Date().toISOString(), sync:false});
+      bewaar(); stap = 'bewaard'; teken(); sync();
+    };
+    document.getElementById('opnieuw').onclick = () => { stap = 'type'; teken(); };
+  }
+  else if (stap === 'bewaard'){
+    S.innerHTML = `<div style="text-align:center;padding:36px 0"><div style="font-size:44px">✅</div><div style="font-size:20px;margin-top:8px">Rit bewaard</div></div><button class="go" id="nog">Nog een rit ingeven</button>`;
+    document.getElementById('nog').onclick = () => { stap = 'type'; teken(); };
+  }
+  else if (stap === 'ov') tekenOverzicht();
+  else if (stap === 'inst') tekenInst();
+}
+
+function cijfers(k){
+  const alle = bereken();
+  const lijst = alle.filter(x => kwartaal(x.d) === k);
+  let werk = 0, prive = 0;
+  lijst.forEach(x => { werk += x.e - x.b; prive += x._prive; });
+  const perMaand = {};
+  lijst.forEach(x => { const m = +x.d.slice(5,7); perMaand[m] = perMaand[m] || {w:0,p:0}; perMaand[m].w += x.e - x.b; perMaand[m].p += x._prive; });
+  return {lijst: lijst.slice().sort((a,b) => a.d.localeCompare(b.d) || a.b - b.b), werk, prive, perMaand};
+}
+
+function tekenOverzicht(){
+  const kws = [...new Set(zichtbaar().map(x => kwartaal(x.d)).concat([kwartaal(VANDAAG())]))].sort().reverse();
+  if (!kwKeuze || !kws.includes(kwKeuze)) kwKeuze = kwartaal(VANDAAG());
+  const c = cijfers(kwKeuze);
+  const tot = c.werk + c.prive, pct = tot ? c.werk / tot : 0, R = 60, C = 2 * Math.PI * R;
+  const maandHtml = Object.keys(c.perMaand).sort((a,b)=>a-b).map(m => { const v = c.perMaand[m], t = v.w + v.p;
+    return `<div class="maand"><div style="display:flex;justify-content:space-between;font-size:15px"><span>${maanden[m-1]}</span><span>werk ${nf(v.w)} · privé ${nf(v.p)} km</span></div><div class="bar"><i style="width:${t ? v.w/t*100 : 0}%"></i></div></div>`; }).join('');
+  S.innerHTML = `<select id="kw">${kws.map(k => `<option value="${k}" ${k===kwKeuze?'selected':''}>${kwTekst(k)}</option>`).join('')}</select>
+    <div style="display:flex;align-items:center;gap:20px;margin:16px 0">
+      <svg width="150" height="150" viewBox="0 0 150 150"><circle cx="75" cy="75" r="${R}" fill="none" stroke="#B4B2A9" stroke-width="22"/>
+      <circle cx="75" cy="75" r="${R}" fill="none" stroke="#3B6D11" stroke-width="22" stroke-dasharray="${C*pct} ${C}" transform="rotate(-90 75 75)"/>
+      <text x="75" y="83" text-anchor="middle" font-size="24" font-weight="700" fill="#22221f">${Math.round(pct*100)}%</text></svg>
+      <div><div class="legend"><b style="background:var(--groen)"></b>Werk</div><div style="font-size:24px;font-weight:600;margin-bottom:10px">${nf(c.werk)} km</div>
+      <div class="legend"><b style="background:var(--prive)"></b>Privé</div><div style="font-size:24px;font-weight:600">${nf(c.prive)} km</div></div>
+    </div>
+    ${maandHtml ? `<div class="kaartje">${maandHtml}</div>` : ''}
+    <div class="opt" style="margin-top:14px"><button id="xls">📊 Excel</button><button id="pdf">📄 PDF</button></div>
+    <div class="lbl">Ritten (${c.lijst.length})</div>
+    ${c.lijst.length ? c.lijst.slice().reverse().map(x => `<div class="row"><div>${new Date(x.d+'T12:00').toLocaleDateString('nl-BE',{day:'numeric',month:'short'})} · ${x.doel}${x._dubbel ? ' <span style="color:var(--geel-t);background:var(--geel);border-radius:6px;padding:1px 6px;font-size:13px">dubbel?</span>' : ''}${x.sync ? '' : ' <span style="font-size:13px" title="Nog niet doorgestuurd">⏳</span>'}<div class="sub" style="font-size:13px">${nf(x.b)} tot ${nf(x.e)}</div></div><div style="display:flex;align-items:center"><span class="km">${nf(x.e - x.b)} km</span><button class="del" data-id="${x.id}" aria-label="Rit verwijderen">🗑️</button></div></div>`).join('') : '<div class="sub">In dit kwartaal staan nog geen ritten. Tik op Nieuwe rit om er een in te geven.</div>'}`;
+  document.getElementById('kw').onchange = e => { kwKeuze = e.target.value; teken(); };
+  document.getElementById('xls').onclick = () => maakExcel(kwKeuze);
+  document.getElementById('pdf').onclick = () => maakPdf(kwKeuze);
+  S.querySelectorAll('.del').forEach(b => b.onclick = () => {
+    const x = ritten.find(y => y.id === b.dataset.id);
+    if (!confirm(`Rit van ${dKort(x.d)} naar ${x.doel} (${nf(x.e-x.b)} km) verwijderen?`)) return;
+    x.weg = true; x.sync = false; bewaar(); teken(); sync();
+  });
+}
+
+function maakExcel(k){
+  const c = cijfers(k);
+  const rijen = [['Kilometeroverzicht GaaiGoed'], [kwTekst(k)], [],
+    ['Datum','Beginstand','Eindstand','Kilometer','Doel']];
+  c.lijst.forEach(x => rijen.push([new Date(x.d+'T12:00'), x.b, x.e, x.e - x.b, x.doel]));
+  rijen.push([], ['Werkkilometers', null, null, c.werk], ['Privékilometers', null, null, c.prive], ['Totaal gereden', null, null, c.werk + c.prive],
+    ['Aandeel werk', null, null, (c.werk + c.prive) ? (Math.round(c.werk / (c.werk + c.prive) * 1000) / 10).toLocaleString('nl-BE') + ' %' : '0 %']);
+  const ws = XLSX.utils.aoa_to_sheet(rijen, {cellDates:true, dateNF:'dd/mm/yyyy'});
+  ws['!cols'] = [{wch:16},{wch:12},{wch:12},{wch:11},{wch:28}];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Kilometers');
+  XLSX.writeFile(wb, `Kilometers_GaaiGoed_${k.replace('-','_')}.xlsx`);
+}
+
+function maakPdf(k){
+  const c = cijfers(k), tot = c.werk + c.prive;
+  document.getElementById('print').innerHTML = `<h2>Kilometeroverzicht GaaiGoed</h2><div>${kwTekst(k)}</div>
+    <table><tr><th>Datum</th><th class="n">Beginstand</th><th class="n">Eindstand</th><th class="n">Km</th><th>Doel</th></tr>
+    ${c.lijst.map(x => `<tr><td>${dKort(x.d)}</td><td class="n">${nf(x.b)}</td><td class="n">${nf(x.e)}</td><td class="n">${nf(x.e-x.b)}</td><td>${x.doel}</td></tr>`).join('')}</table>
+    <table style="width:60%"><tr><td>Werkkilometers</td><td class="n">${nf(c.werk)} km</td></tr><tr><td>Privékilometers</td><td class="n">${nf(c.prive)} km</td></tr>
+    <tr><td><b>Totaal gereden</b></td><td class="n"><b>${nf(tot)} km</b></td></tr><tr><td>Aandeel werk</td><td class="n">${tot ? (Math.round(c.werk/tot*1000)/10).toLocaleString('nl-BE') : 0} %</td></tr></table>`;
+  const oud = document.title; document.title = `Kilometers_GaaiGoed_${k.replace('-','_')}`;
+  window.print(); document.title = oud;
+}
+
+function tekenInst(){
+  S.innerHTML = `<div class="lbl" style="margin-top:0">Naam van dit toestel</div>
+    <div class="opt"><button data-ts="Telefoon" class="${inst.toestel==='Telefoon'?'sel':''}">Telefoon</button><button data-ts="Tablet" class="${inst.toestel==='Tablet'?'sel':''}">Tablet</button></div>
+    <div class="lbl">Link van je Google Sheet (web-app)</div><input type="url" id="url" placeholder="https://script.google.com/macros/s/.../exec" value="${inst.url}">
+    <div class="lbl">Geheim woord</div><input type="text" id="sl" placeholder="Het woord dat je in de code zette" value="${inst.sleutel}">
+    ${fout ? `<div class="fout">${fout}</div>` : ''}
+    <button class="go" id="opsl">Opslaan en koppelen</button>
+    <button class="wide" id="nu">Nu bijwerken</button>
+    <div class="sub" id="msg" style="margin-top:12px"></div>`;
+  S.querySelectorAll('[data-ts]').forEach(b => b.onclick = () => { inst.toestel = b.dataset.ts; localStorage.setItem('km_inst', JSON.stringify(inst)); teken(); });
+  document.getElementById('opsl').onclick = () => {
+    const u = document.getElementById('url').value.trim(), s = document.getElementById('sl').value.trim();
+    if (u && !u.startsWith('https://script.google.com/')){ fout = 'Deze link klopt niet. Hij begint met https://script.google.com/'; teken(); return; }
+    fout = ''; inst.url = u; inst.sleutel = s; localStorage.setItem('km_inst', JSON.stringify(inst));
+    document.getElementById('msg').textContent = 'Bewaard. Bezig met bijwerken…'; sync(true);
+  };
+  document.getElementById('nu').onclick = () => { document.getElementById('msg').textContent = 'Bezig met bijwerken…'; sync(true); };
+}
+
+function toonStatus(tekst){
+  const st = document.getElementById('status'), wacht = ritten.filter(x => !x.sync).length;
+  st.className = 'status';
+  if (tekst){ st.textContent = tekst; st.classList.add('wacht'); return; }
+  if (!inst.url){ st.textContent = 'Niet gekoppeld'; st.classList.add('uit'); }
+  else if (wacht){ st.textContent = `${wacht} wacht op internet`; st.classList.add('wacht'); }
+  else st.textContent = 'Bijgewerkt ✓';
+}
+
+async function sync(meld){
+  const msg = t => { const m = document.getElementById('msg'); if (m) m.textContent = t; };
+  if (!inst.url || bezig) return;
+  if (!navigator.onLine){ if (meld) msg('Geen internet. Je ritten blijven op dit toestel bewaard en worden later doorgestuurd.'); return; }
+  bezig = true;
+  const teSturen = ritten.filter(x => !x.sync);
+  const ids = new Set(teSturen.map(x => x.id));
+  try {
+    let res;
+    if (teSturen.length) res = await fetch(inst.url, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({sleutel:inst.sleutel, ritten:teSturen})});
+    else res = await fetch(inst.url + '?sleutel=' + encodeURIComponent(inst.sleutel));
+    const data = await res.json();
+    if (!data.ok){ if (meld) msg(data.fout === 'sleutel' ? 'Het geheime woord klopt niet met dat in je Google Sheet.' : 'De Google Sheet gaf een fout: ' + data.fout); bezig = false; toonStatus(); return; }
+    const nieuwIntussen = ritten.filter(x => !x.sync && !ids.has(x.id));
+    ritten = data.ritten.map(x => ({...x, sync:true})).concat(nieuwIntussen);
+    bewaar();
+    if (meld) msg('Bijgewerkt. Er staan nu ' + zichtbaar().length + ' ritten op dit toestel.');
+  } catch(e){
+    if (meld) msg('Bijwerken lukte niet. Controleer de link en of je internet hebt.');
+  }
+  bezig = false;
+  if (stap === 'ov' || stap === 'inst') { const m = document.getElementById('msg'); const t = m && m.textContent; teken(); if (t) msg(t); }
+  else toonStatus();
+}
+
+document.getElementById('tNieuw').onclick = () => { fout=''; stap = 'type'; teken(); };
+document.getElementById('tOv').onclick = () => { fout=''; stap = 'ov'; teken(); };
+document.getElementById('tInst').onclick = () => { fout=''; stap = 'inst'; teken(); };
+document.getElementById('status').onclick = () => { fout=''; stap = 'inst'; teken(); };
+window.addEventListener('online', () => sync());
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+setInterval(() => sync(), 120000);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+teken(); sync();
+</script>
+</body>
+</html>
