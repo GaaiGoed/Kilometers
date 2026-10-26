@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablet koppelen</title>
+<style>body{font-family:system-ui,sans-serif;background:#f6f6f1;color:#22221f;text-align:center;padding:40px 20px;font-size:20px}
+#s{font-size:26px;font-weight:600;margin:20px 0}a{display:inline-block;background:#3B6D11;color:#fff;padding:18px 30px;border-radius:12px;text-decoration:none;margin-top:20px}</style></head>
+<body><div>Kilometers GaaiGoed</div><div id="s">Bezig met koppelen…</div><div id="u"></div>
+<script>
+const SLEUTEL = 'Chipito6999!';
+const SJABLOON = 'AKfycbx6{O}kQ7kY4yh{I}bPh7{O}tG8v{1}vJssMN{I}WRi4rbhkiixv{1}59u73sPXGZXH57GC3{1}-2eLZ-Hw';
+const KEUZES = {'{O}':['O','0'], '{I}':['I','l'], '{1}':['1','l']};
+function varianten(t){
+  const m = t.match(/\{.\}/);
+  if (!m) return [t];
+  return KEUZES[m[0]].flatMap(k => varianten(t.replace(m[0], k)));
+}
+async function test(id){
+  const url = 'https://script.google.com/macros/s/' + id + '/exec';
+  const r = await fetch(url + '?sleutel=' + encodeURIComponent(SLEUTEL));
+  const d = await r.json();
+  if (!d.ok) throw new Error('nee');
+  return url;
+}
+async function start(){
+  const s = document.getElementById('s');
+  if (!navigator.onLine){ s.textContent = 'Zet eerst de wifi van je tablet aan en open deze pagina opnieuw.'; return; }
+  const lijst = varianten(SJABLOON);
+  let gevonden = null;
+  for (let i = 0; i < lijst.length && !gevonden; i += 16){
+    try { gevonden = await Promise.any(lijst.slice(i, i + 16).map(test)); } catch(e){}
+  }
+  if (!gevonden){ s.textContent = 'Koppelen lukte niet.'; document.getElementById('u').textContent = 'Laat het aan Claude weten.'; return; }
+  let inst = {};
+  try { inst = JSON.parse(localStorage.getItem('km_inst')) || {}; } catch(e){}
+  inst.url = gevonden; inst.sleutel = SLEUTEL; inst.toestel = 'Tablet';
+  localStorage.setItem('km_inst', JSON.stringify(inst));
+  s.textContent = 'Gekoppeld ✓';
+  document.getElementById('u').innerHTML = '<a href="./">Open de app</a>';
+}
+start();
+</script></body></html>
