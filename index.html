@@ -77,6 +77,7 @@ input[type=date],input[type=text],input[type=url],select{width:100%;height:56px;
 <script src="xlsx.full.min.js"></script>
 <script>
 const VANDAAG = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+const MORGEN = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 const nf = n => Math.round(n).toLocaleString('nl-BE');
 const dDag = d => new Date(d+'T12:00').toLocaleDateString('nl-BE',{weekday:'long',day:'numeric',month:'long'});
 const dVol = d => new Date(d+'T12:00').toLocaleDateString('nl-BE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
@@ -167,15 +168,16 @@ function teken(){
     document.getElementById('terug').onclick = () => { stap = r.edit ? 'bewerk' : 'type'; teken(); };
   }
   else if (stap === 'datum'){
-    const isVd = r.d === VANDAAG() && !kiesDatum;
+    const isVd = r.d === VANDAAG() && !kiesDatum, isMg = r.d === MORGEN() && !kiesDatum;
     S.innerHTML = `<div class="sub">${r.ander || r.doel}</div><div class="lbl">Datum van de rit</div>
       <div class="datum">${dVol(r.d)}</div>
-      <div class="opt" style="margin-top:10px"><button id="vd" class="${isVd?'sel':''}">Vandaag</button><button id="ad" class="${isVd?'':'sel'}">Andere datum</button></div>
-      ${kiesDatum ? `<input type="date" id="dat" value="${r.d}" max="${VANDAAG()}" style="margin-top:10px">` : ''}
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px"><button id="vd" class="${isVd?'sel':''}" style="height:60px">Vandaag</button><button id="mg" class="${isMg?'sel':''}" style="height:60px">Morgen</button><button id="ad" class="${isVd||isMg?'':'sel'}" style="height:60px">Andere datum</button></div>
+      ${kiesDatum ? `<input type="date" id="dat" value="${r.d}" style="margin-top:10px">` : ''}
       <button class="go" id="verder">Verder</button><button class="wide" id="terug">Terug</button>`;
     document.getElementById('vd').onclick = () => { r.d = VANDAAG(); kiesDatum = false; teken(); };
+    document.getElementById('mg').onclick = () => { r.d = MORGEN(); kiesDatum = false; teken(); };
     document.getElementById('ad').onclick = () => { kiesDatum = true; teken(); const d = document.getElementById('dat'); d.focus(); try { d.showPicker(); } catch(e){} };
-    const dat = document.getElementById('dat'); if (dat) dat.onchange = () => { if (dat.value && dat.value <= VANDAAG()){ r.d = dat.value; teken(); } };
+    const dat = document.getElementById('dat'); if (dat) dat.onchange = () => { if (dat.value){ r.d = dat.value; teken(); } };
     document.getElementById('verder').onclick = () => { inv = ''; fout = ''; stap = r.edit ? 'bewerk' : 'begin'; teken(); };
     document.getElementById('terug').onclick = () => { stap = r.edit ? 'bewerk' : (r.doel === 'Andere' ? 'ander' : 'type'); teken(); };
   }
@@ -233,7 +235,7 @@ function teken(){
       <button class="go" id="wOk">Wijziging bewaren</button><button class="wide" id="wWeg">🗑️ Rit verwijderen</button><button class="wide" id="wAnn">Annuleren</button>`;
     S.querySelectorAll('[data-km]').forEach(b => b.onclick = () => { r.e = r.b + (+b.dataset.km); fout=''; teken(); });
     document.getElementById('wDoel').onclick = () => { stap = 'type'; teken(); };
-    document.getElementById('wDat').onclick = () => { kiesDatum = r.d !== VANDAAG(); stap = 'datum'; teken(); };
+    document.getElementById('wDat').onclick = () => { kiesDatum = r.d !== VANDAAG() && r.d !== MORGEN(); stap = 'datum'; teken(); };
     document.getElementById('wBegin').onclick = () => { inv = String(r.b); fout=''; stap = 'begin'; teken(); };
     document.getElementById('wEind').onclick = () => { inv = String(r.e); fout=''; stap = 'eind'; teken(); };
     document.getElementById('wAnn').onclick = () => { const terug = r.van; r = {}; fout=''; stap = terug || 'type'; teken(); };
@@ -409,4 +411,4 @@ if (location.hash.startsWith('#koppel=')){
 teken(); if (welkom){ document.getElementById('msg').textContent = welkom; } sync();
 </script>
 </body>
-</html> 
+</html>
