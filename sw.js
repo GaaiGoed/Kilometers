@@ -1,4 +1,4 @@
-const CACHE = 'km-v5';
+const CACHE = 'km-v6';
 const BESTANDEN = ['./', './index.html', './manifest.json', './xlsx.full.min.js', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(BESTANDEN.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting()));
